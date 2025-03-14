@@ -20,6 +20,18 @@ const initializeDbAndServer = async () => {
         filename: dbPath,
         driver: sqlite3.Database
         })
+
+        const createTaskTableQuery = `
+        CREATE TABLE IF NOT EXISTS task (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT
+        );`;
+
+
+        await db.run(createTaskTableQuery);
+
+
         app.listen(3000,()=>{
             console.log("Server Running at http://localhost:3000/")
         })
@@ -37,22 +49,22 @@ app.use(express.json())
 module.exports = app
 
 
-/* CREATION OF TASK TABLE FOR DATABASE
- 
-taskTable = `
- CREATE TABLE task(
-     id INTEGER,
-     title TEXT,
-     description TEXT
- )
-`
-await db.run(taskTable); */
-
+const titleCheck = async (request,response,next) => {
+    // Basic validation to check if 'title' is provided and not empty
+    const {title} = request.body;
+    if (!title || title.trim() === '') {
+        response.status(400);
+        response.send({ error: 'Task title is required and cannot be empty.' });
+    }
+    else{
+        next()
+    }
+}
 
 
 //CREATE A TASK 
 
-app.post('/tasks/',async(request,response) => {
+app.post('/tasks/',titleCheck,async(request,response) => {
     const {title , description} = request.body
     const createTaskQuery = `
     INSERT INTO 
@@ -65,7 +77,8 @@ app.post('/tasks/',async(request,response) => {
     const createTask = await db.run(createTaskQuery)
     const uniqueId = createTask.lastId
 
-    response.send(createTask)
+    response.send({ id: uniqueId, title, description });
+    response.status(201)
 
     //ADDING Post Task To Array
     task[postTask] = createTask
@@ -113,7 +126,7 @@ app.get('/tasks/:taskId/',async (request,response) => {
 
 //UPDATE TASK
 
-app.put('tasks/:taskId/',async (request,response) => {
+app.put('/tasks/:taskId/',async (request,response) => {
     const {taskId} = request.params
     const {title,description} = request.body
     const updateTaskQuery = `
@@ -127,7 +140,7 @@ app.put('tasks/:taskId/',async (request,response) => {
     `
 
     const updateTask = await db.run(updateTaskQuery)
-    if (updateTask !== undefined){
+    if (updateTask.changes !== 0){
         response.status(200)
         response.send(updateTask)
     }
